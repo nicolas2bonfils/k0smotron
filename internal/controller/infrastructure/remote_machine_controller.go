@@ -242,17 +242,15 @@ func (r *RemoteMachineController) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, nil
 	}
 
-	// If the machine is already provisioned, skip reconciliation.
-	if rm.Status.Initialization.Provisioned != nil && *rm.Status.Initialization.Provisioned {
+	// If the machine is already provisioned, skip reconciliation. The ProviderID is only set once the
+	// bootstrap succeeded, so it also marks a provisioned machine whose status was not carried over,
+	// e.g. by clusterctl move.
+	if (rm.Status.Initialization.Provisioned != nil && *rm.Status.Initialization.Provisioned) || rm.Spec.ProviderID != "" {
 		conditions.Set(rm, metav1.Condition{
 			Type:   string(infrastructure.RemoteMachineBootstrapExecSucceededCondition),
 			Status: metav1.ConditionTrue,
 			Reason: infrastructure.RemoteMachineBootstrapExecSucceededReason,
 		})
-		return ctrl.Result{}, nil
-	}
-	if rm.Spec.ProviderID != "" {
-		log.Info("RemoteMachine already has ProviderID, skipping reconciliation")
 		return ctrl.Result{}, nil
 	}
 
