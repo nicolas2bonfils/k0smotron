@@ -196,6 +196,10 @@ func newEnvironment(setupSecretCachingClient setupSecretCachingClientFn) *Enviro
 		panic(errors.Wrapf(err, "unable to create validation webhook"))
 	}
 
+	if err = infrastructurev1beta2.SetupRemoteClusterWebhookWithManager(mgr); err != nil {
+		panic(errors.Wrapf(err, "unable to create setup webhook for RemoteCluster"))
+	}
+
 	if err = infrastructurev1beta2.SetupRemoteMachineWebhookWithManager(mgr); err != nil {
 		panic(errors.Wrapf(err, "unable to create setup webhook for RemoteMachine"))
 	}

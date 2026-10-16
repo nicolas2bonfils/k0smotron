@@ -19,6 +19,7 @@ package v1beta2
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 // Add RBAC for the authorized diagnostics endpoint.
@@ -98,4 +99,10 @@ type RemoteClusterList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []RemoteCluster `json:"items"`
+}
+
+// SetupRemoteClusterWebhookWithManager registers the webhook for remote clusters in the manager.
+func SetupRemoteClusterWebhookWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewWebhookManagedBy(mgr, &RemoteCluster{}).
+		Complete()
 }
