@@ -28,6 +28,7 @@ configurations:
 
 patches:
 - path: manager_config_patch.yaml
+- path: patches/conversion_in_remoteclusters.yaml
 - path: patches/conversion_in_remotemachines.yaml
 - path: patches/conversion_in_pooledremotemachines.yaml
 - path: patches/cainjection_in_remotemachines.yaml
