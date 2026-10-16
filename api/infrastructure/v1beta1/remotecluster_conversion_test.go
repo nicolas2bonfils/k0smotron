@@ -1,0 +1,46 @@
+/*
+Copyright 2026.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package v1beta1
+
+import (
+	"testing"
+
+	"github.com/k0sproject/k0smotron/v2/api/infrastructure/v1beta2"
+	"github.com/stretchr/testify/require"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
+)
+
+func TestRemoteCluster_Conversion(t *testing.T) {
+	endpoint := clusterv1.APIEndpoint{Host: "10.0.0.1", Port: 6443}
+
+	oldObj := &RemoteCluster{
+		Spec:   RemoteClusterSpec{ControlPlaneEndpoint: endpoint},
+		Status: RemoteClusterStatus{Ready: true},
+	}
+	newObj := &v1beta2.RemoteCluster{}
+	require.NoError(t, oldObj.ConvertTo(newObj))
+	require.Equal(t, endpoint, newObj.Spec.ControlPlaneEndpoint)
+	require.Equal(t, new(true), newObj.Status.Initialization.Provisioned)
+
+	back := &RemoteCluster{}
+	require.NoError(t, back.ConvertFrom(newObj))
+	require.Equal(t, oldObj.Spec, back.Spec)
+	require.True(t, back.Status.Ready)
+
+	require.NoError(t, back.ConvertFrom(&v1beta2.RemoteCluster{}))
+	require.False(t, back.Status.Ready)
+}
