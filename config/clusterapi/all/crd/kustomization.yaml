@@ -12,6 +12,7 @@ patches:
 - path: patches/webhook_in_k0smotroncontrolplanes.yaml
 - path: patches/webhook_in_k0sworkerconfig.yaml
 - path: patches/webhook_in_k0scontrollerconfig.yaml
+- path: patches/conversion_in_remoteclusters.yaml
 - path: patches/conversion_in_remotemachines.yaml
 - path: patches/conversion_in_pooledremotemachines.yaml
 - path: patches/webhook_conversion_in_k0smotron_cluster.yaml

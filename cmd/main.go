@@ -527,6 +527,11 @@ func setupCAPIControllersOrDie(ctx context.Context, mgr manager.Manager, clientS
 			os.Exit(1)
 		}
 
+		if err = infrastructurev1beta2.SetupRemoteClusterWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook for RemoteCluster", "webhook", "RemoteCluster")
+			os.Exit(1)
+		}
+
 		if err = infrastructurev1beta2.SetupRemoteMachineWebhookWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create webhook for RemoteMachine", "webhook", "RemoteMachine")
 			os.Exit(1)
