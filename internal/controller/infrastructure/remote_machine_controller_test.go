@@ -23,8 +23,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	infrastructure "github.com/k0sproject/k0smotron/v2/api/infrastructure/v1beta2"
@@ -123,4 +128,73 @@ func TestReservePooledMachineAndPopulateRemoteMachine(t *testing.T) {
 	require.Equal(t, map[string]string{"pool": "a"}, rm.Labels)
 	require.Equal(t, map[string]string{"note": "from the pool"}, rm.Annotations)
 	require.Equal(t, pooled.Spec.Machine.CleanUpCommands, rm.Spec.CleanUpCommands)
+}
+
+// TestReconcileRestoresProvisionedAfterMove covers a RemoteMachine moved by clusterctl move,
+// which carries the ProviderID in the spec but not the status that marked it provisioned.
+func TestReconcileRestoresProvisionedAfterMove(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, infrastructure.AddToScheme(scheme))
+	require.NoError(t, clusterv1.AddToScheme(scheme))
+	require.NoError(t, corev1.AddToScheme(scheme))
+
+	cluster := &clusterv1.Cluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "c", Namespace: "default"},
+		Status: clusterv1.ClusterStatus{Conditions: []metav1.Condition{{
+			Type:   clusterv1.ClusterInfrastructureReadyCondition,
+			Status: metav1.ConditionTrue,
+		}}},
+	}
+	machine := &clusterv1.Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "m",
+			Namespace: "default",
+			Labels:    map[string]string{clusterv1.ClusterNameLabel: "c"},
+		},
+		Spec: clusterv1.MachineSpec{
+			ClusterName: "c",
+			Bootstrap:   clusterv1.Bootstrap{DataSecretName: new("bootstrap")},
+		},
+	}
+	rm := &infrastructure.RemoteMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "rm",
+			Namespace:  "default",
+			Finalizers: []string{RemoteMachineFinalizer},
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: clusterv1.GroupVersion.String(),
+				Kind:       "Machine",
+				Name:       "m",
+			}},
+		},
+		Spec: infrastructure.RemoteMachineSpec{
+			Address:    "10.0.0.1",
+			Port:       22,
+			SSHKeyRef:  infrastructure.SecretRef{Name: "ssh-key"},
+			ProviderID: "remote-machine://10.0.0.1:22",
+		},
+		// Set by an earlier reconcile, which returns right after setting it.
+		Status: infrastructure.RemoteMachineStatus{Conditions: []metav1.Condition{{
+			Type:   clusterv1.PausedCondition,
+			Status: metav1.ConditionFalse,
+			Reason: clusterv1.NotPausedReason,
+		}}},
+	}
+	secrets := []client.Object{
+		&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "bootstrap", Namespace: "default"}},
+		&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "ssh-key", Namespace: "default"}},
+	}
+
+	c := fake.NewClientBuilder().WithScheme(scheme).
+		WithObjects(append(secrets, cluster, machine, rm)...).WithStatusSubresource(rm).Build()
+	r := &RemoteMachineController{Client: c, SecretCachingClient: c}
+
+	key := types.NamespacedName{Name: "rm", Namespace: "default"}
+	_, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: key})
+	require.NoError(t, err)
+
+	got := &infrastructure.RemoteMachine{}
+	require.NoError(t, c.Get(context.Background(), key, got))
+	require.NotNil(t, got.Status.Initialization.Provisioned)
+	require.True(t, *got.Status.Initialization.Provisioned)
 }
