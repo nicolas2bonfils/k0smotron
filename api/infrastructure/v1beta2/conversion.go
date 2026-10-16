@@ -21,3 +21,6 @@ func (*RemoteMachine) Hub() {}
 
 // Hub marks PooledRemoteMachine as a conversion hub.
 func (*PooledRemoteMachine) Hub() {}
+
+// Hub marks RemoteCluster as a conversion hub.
+func (*RemoteCluster) Hub() {}
