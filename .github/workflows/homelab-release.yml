@@ -1,0 +1,61 @@
+# Releases of the homelab fork: tags vX.Y.Z-homelab.N on a homelab/* branch.
+# Publishes the image to ghcr.io/<owner>/k0smotron and the clusterctl
+# components files, so that Cluster API Operator can install this fork from
+# its GitHub release. Upstream's release.yml ignores these tags.
+name: Homelab release
+
+on:
+  push:
+    tags:
+      - v*-homelab.*
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
+        with:
+          go-version: '1.26.5'
+
+      - name: Image reference
+        run: |
+          repo="${GITHUB_REPOSITORY,,}"
+          echo "IMG=ghcr.io/${repo}:${GITHUB_REF_NAME//+/-}" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          build-args: |
+            BUILD_IMG=golang:1.26.5
+          context: .
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ env.IMG }}
+          push: true
+
+      - name: Components files
+        run: |
+          make bootstrap-components.yaml IMG="$IMG"
+          make control-plane-components.yaml IMG="$IMG"
+          make infrastructure-components.yaml IMG="$IMG"
+
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --prerelease \
+            --title "$GITHUB_REF_NAME" \
+            --notes "Homelab build of k0smotron from branch ${GITHUB_REF_NAME}, image ${IMG}." \
+            metadata.yaml bootstrap-components.yaml control-plane-components.yaml infrastructure-components.yaml
